@@ -5,6 +5,7 @@ import { useAuth } from "../lib/AuthContext";
 import { useFirestoreCollection, useFirestoreMappa } from "../hooks/useFirestoreCollection";
 import * as dbApi from "../lib/db";
 import { seedEsempio } from "../lib/seed";
+import { COLL } from "../lib/collections";
 import {
   GIORNI_LABEL,
   MESI_LABEL,
@@ -68,15 +69,15 @@ const SUGGERIMENTI_TAB = {
 
 export default function MotoreTurni() {
   const { logout } = useAuth();
-  const { dati: skills } = useFirestoreCollection("skills");
-  const { dati: dipendentiRaw } = useFirestoreCollection("dipendenti");
+  const { dati: skills } = useFirestoreCollection(COLL.skills);
+  const { dati: dipendentiRaw } = useFirestoreCollection(COLL.dipendenti);
   const dipendenti = useMemo(
     () => dipendentiRaw.map((d) => ({ telefono: "", skillIds: [], tettoOre: 30, oreMaxGiorno: 8, minGiorniLiberi: 1, assenze: [], ...d })),
     [dipendentiRaw]
   );
-  const { dati: fabbisogno } = useFirestoreCollection("fabbisogno");
-  const { mappa: prioritaMappa } = useFirestoreMappa("priorita");
-  const { mappa: risultati } = useFirestoreMappa("proposte");
+  const { dati: fabbisogno } = useFirestoreCollection(COLL.fabbisogno);
+  const { mappa: prioritaMappa } = useFirestoreMappa(COLL.priorita);
+  const { mappa: risultati } = useFirestoreMappa(COLL.proposte);
 
   const [settimanaVista, setSettimanaVista] = useState(lunediSettimana(new Date()));
   const [tab, setTab] = useState("skill");
