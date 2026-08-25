@@ -2,15 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
-// Sostituisci con la configurazione del TUO progetto Firebase
-// (Console Firebase → Impostazioni progetto → Le tue app → Configurazione SDK)
 const firebaseConfig = {
-  apiKey: "INSERISCI_API_KEY",
-  authDomain: "INSERISCI_PROJECT.firebaseapp.com",
-  projectId: "INSERISCI_PROJECT",
-  storageBucket: "INSERISCI_PROJECT.appspot.com",
-  messagingSenderId: "INSERISCI_SENDER_ID",
-  appId: "INSERISCI_APP_ID",
+  apiKey: "AIzaSyC-WpS9hAsnPICKMJIo7cQcKrDKY8C6rY4",
+  authDomain: "turni-3093b.firebaseapp.com",
+  projectId: "turni-3093b",
+  storageBucket: "turni-3093b.firebasestorage.app",
+  messagingSenderId: "750924879766",
+  appId: "1:750924879766:web:def6744d33a1a38cab6fb7",
 };
 
 export const app = initializeApp(firebaseConfig);
