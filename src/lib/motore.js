@@ -4,6 +4,15 @@ export function inAssenza(dip, dataStr) {
   return (dip.assenze || []).some((a) => dataStr >= a.dataInizio && dataStr <= a.dataFine);
 }
 
+// La fascia f rientra interamente in una delle fasce orarie preferite del dipendente?
+// Se il dipendente non ha preferenze abilitate, è sempre considerata "conforme" (nessun filtro).
+export function rientraNellePreferenze(dip, f) {
+  if (!dip.preferenzeOrarie?.abilitato) return true;
+  const fasce = dip.preferenzeOrarie.fasce || [];
+  if (fasce.length === 0) return true;
+  return fasce.some((p) => toMin(p.oraInizio) <= toMin(f.oraInizio) && toMin(p.oraFine) >= toMin(f.oraFine));
+}
+
 export function calcolaPrioritaSync(skills, dipendenti, prioritaMappa) {
   const p = {};
   skills.forEach((sk) => {
@@ -58,6 +67,7 @@ export function calcolaProposta(lunediSettimanaTarget, fabbisogno, dipendenti, p
           const potenziali = giorniLavorati[dipId].size + 1;
           if (7 - potenziali < (d.minGiorniLiberi ?? 0)) return false;
         }
+        if (d.preferenzeOrarie?.abilitato && d.preferenzeOrarie.tolleranza === "rigida" && !rientraNellePreferenze(d, f)) return false;
         return true;
       };
       const assegna = (dipId) => {
@@ -78,8 +88,18 @@ export function calcolaProposta(lunediSettimanaTarget, fabbisogno, dipendenti, p
         if (assegnati >= req.numero) break;
         assegna(dipId);
       }
+      // Prima passata: rispetta chi ha una preferenza "morbida" e rientra nella fascia preferita
       for (const dipId of lista) {
         if (assegnati >= req.numero) break;
+        if (!idoneo(dipId)) continue;
+        const d = dipendenti.find((x) => x.id === dipId);
+        if (d.preferenzeOrarie?.abilitato && d.preferenzeOrarie.tolleranza === "preferenza" && !rientraNellePreferenze(d, f)) continue;
+        assegna(dipId);
+      }
+      // Seconda passata: se restano posti scoperti, ripesca anche chi preferirebbe un altro orario
+      for (const dipId of lista) {
+        if (assegnati >= req.numero) break;
+        if (usatiQuestaFascia.has(dipId)) continue;
         if (!idoneo(dipId)) continue;
         assegna(dipId);
       }
