@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, Check, X, Copy, CalendarOff, FileSpreadsheet, MessageCircle, Printer, Repeat, ChevronsLeft, ChevronsRight, Gauge, Info, Sparkles } from "lucide-react";
+import { Plus, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, Check, X, Copy, CalendarOff, FileSpreadsheet, MessageCircle, Printer, Repeat, ChevronsLeft, ChevronsRight, Gauge, Info, Sparkles, Clock } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAuth } from "../lib/AuthContext";
 import { useFirestoreCollection, useFirestoreMappa } from "../hooks/useFirestoreCollection";
@@ -85,6 +85,7 @@ export default function MotoreTurni() {
   const [modaleDuplica, setModaleDuplica] = useState(null);
   const [modaleRicorrenza, setModaleRicorrenza] = useState(false);
   const [modaleAssenze, setModaleAssenze] = useState(null);
+  const [modalePreferenze, setModalePreferenze] = useState(null);
   const [nuovaSkill, setNuovaSkill] = useState("");
   const [generando, setGenerando] = useState(false);
   const [seedando, setSeedando] = useState(false);
@@ -153,6 +154,9 @@ export default function MotoreTurni() {
   function eliminaAssenza(dipendenteId, assenzaId) {
     const d = dipendenti.find((x) => x.id === dipendenteId);
     if (d) dbApi.eliminaAssenza(dipendenteId, d, assenzaId);
+  }
+  function aggiornaPreferenze(dipendenteId, preferenzeOrarie) {
+    dbApi.aggiornaDipendente(dipendenteId, { preferenzeOrarie });
   }
 
   function salvaFascia(fascia) {
@@ -322,6 +326,7 @@ export default function MotoreTurni() {
             toggleSkillDipendente={toggleSkillDipendente}
             eliminaDipendente={eliminaDipendente}
             onApriAssenze={(id) => setModaleAssenze(id)}
+            onApriPreferenze={(id) => setModalePreferenze(id)}
           />
         )}
 
@@ -376,6 +381,14 @@ export default function MotoreTurni() {
           onChiudi={() => setModaleAssenze(null)}
         />
       )}
+
+      {modalePreferenze && (
+        <ModalePreferenze
+          dipendente={dipendenti.find((d) => d.id === modalePreferenze)}
+          onSalva={(pref) => aggiornaPreferenze(modalePreferenze, pref)}
+          onChiudi={() => setModalePreferenze(null)}
+        />
+      )}
     </div>
   );
 }
@@ -418,7 +431,7 @@ function SkillPanel({ skills, nuovaSkill, setNuovaSkill, aggiungiSkill, eliminaS
 }
 
 // ---------------- Dipendenti ----------------
-function DipendentiPanel({ dipendenti, skills, aggiungiDipendente, aggiornaDipendente, toggleSkillDipendente, eliminaDipendente, onApriAssenze }) {
+function DipendentiPanel({ dipendenti, skills, aggiungiDipendente, aggiornaDipendente, toggleSkillDipendente, eliminaDipendente, onApriAssenze, onApriPreferenze }) {
   return (
     <div className="flex flex-col gap-3">
       {dipendenti.map((d) => (
@@ -466,8 +479,11 @@ function DipendentiPanel({ dipendenti, skills, aggiungiDipendente, aggiornaDipen
             })}
             {skills.length === 0 && <span className="text-xs" style={{ color: "#8A7A63" }}>Crea prima delle skill.</span>}
           </div>
-          <button onClick={() => onApriAssenze(d.id)} className="w-full py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5" style={{ border: "1px solid #E3D9C6", color: "#7A5A1E" }}>
+          <button onClick={() => onApriAssenze(d.id)} className="w-full py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 mb-1.5" style={{ border: "1px solid #E3D9C6", color: "#7A5A1E" }}>
             <CalendarOff size={13} /> Ferie e permessi {d.assenze && d.assenze.length > 0 ? `(${d.assenze.length})` : ""}
+          </button>
+          <button onClick={() => onApriPreferenze(d.id)} className="w-full py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5" style={{ border: "1px solid #E3D9C6", color: d.preferenzeOrarie?.abilitato ? "#33506F" : "#7A5A1E", background: d.preferenzeOrarie?.abilitato ? "#DEE6EE" : "transparent" }}>
+            <Clock size={13} /> Fasce orarie preferite {d.preferenzeOrarie?.abilitato ? `(${d.preferenzeOrarie.tolleranza === "rigida" ? "rigida" : "preferenza"})` : ""}
           </button>
         </div>
       ))}
@@ -542,6 +558,85 @@ function ModaleAssenze({ dipendente, onAggiungi, onElimina, onChiudi }) {
         <button onClick={handleAggiungi} className="w-full py-1.5 rounded-lg text-sm font-medium mb-4" style={{ background: "#F3E7D3", color: "#7A5A1E" }}>
           <Plus size={13} style={{ display: "inline", marginRight: 4, verticalAlign: -2 }} /> Aggiungi assenza
         </button>
+
+        <div className="flex justify-end">
+          <button onClick={onChiudi} className="px-3 py-1.5 rounded-lg text-sm" style={{ border: "1px solid #D8CBB3" }}>Chiudi</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------- Modale preferenze orarie (per dipendente) ----------------
+function ModalePreferenze({ dipendente, onSalva, onChiudi }) {
+  if (!dipendente) return null;
+  const attuali = dipendente.preferenzeOrarie || { abilitato: false, tolleranza: "preferenza", fasce: [] };
+
+  function aggiorna(campi) {
+    onSalva({ ...attuali, ...campi });
+  }
+  function aggiungiFascia() {
+    aggiorna({ fasce: [...(attuali.fasce || []), { oraInizio: "09:00", oraFine: "13:00" }] });
+  }
+  function aggiornaFascia(i, campo, valore) {
+    const fasce = (attuali.fasce || []).map((f, idx) => (idx === i ? { ...f, [campo]: valore } : f));
+    aggiorna({ fasce });
+  }
+  function rimuoviFascia(i) {
+    aggiorna({ fasce: (attuali.fasce || []).filter((_, idx) => idx !== i) });
+  }
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center p-4 z-10" style={{ background: "rgba(59,42,32,0.35)" }} onClick={onChiudi}>
+      <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: "#FFFDF9" }} onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-sm font-semibold mb-1">Fasce orarie preferite — {dipendente.nome}</h3>
+        <p className="text-xs mb-3" style={{ color: "#8A7A63" }}>
+          Uguali tutti i giorni. Se disabilitate, il dipendente viene considerato per qualsiasi orario come oggi.
+        </p>
+
+        <label className="flex items-center gap-2 text-sm mb-3 cursor-pointer">
+          <input type="checkbox" checked={!!attuali.abilitato} onChange={(e) => aggiorna({ abilitato: e.target.checked })} />
+          Abilita fasce preferite
+        </label>
+
+        {attuali.abilitato && (
+          <>
+            <p className="text-xs mb-2" style={{ color: "#8A7A63" }}>Tolleranza</p>
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => aggiorna({ tolleranza: "preferenza" })}
+                className="flex-1 py-2 rounded-lg text-xs font-medium text-left px-3"
+                style={attuali.tolleranza !== "rigida" ? { background: "#DEE6EE", color: "#33506F", border: "1px solid #B9CCE0" } : { border: "1px solid #E3D9C6", color: "#6E5A40" }}
+              >
+                Preferenza
+                <div className="font-normal mt-0.5" style={{ opacity: 0.8 }}>Se necessario, può essere schedulato anche fuori</div>
+              </button>
+              <button
+                onClick={() => aggiorna({ tolleranza: "rigida" })}
+                className="flex-1 py-2 rounded-lg text-xs font-medium text-left px-3"
+                style={attuali.tolleranza === "rigida" ? { background: "#F6E4E4", color: "#8C3B3B", border: "1px solid #E0AFAF" } : { border: "1px solid #E3D9C6", color: "#6E5A40" }}
+              >
+                Rigida
+                <div className="font-normal mt-0.5" style={{ opacity: 0.8 }}>Mai schedulato fuori da queste fasce</div>
+              </button>
+            </div>
+
+            <p className="text-xs mb-2" style={{ color: "#8A7A63" }}>Fasce orarie</p>
+            <div className="flex flex-col gap-2 mb-2">
+              {(attuali.fasce || []).map((f, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input type="time" value={f.oraInizio} onChange={(e) => aggiornaFascia(i, "oraInizio", e.target.value)} className="flex-1 px-2 py-1.5 rounded-lg text-sm" style={{ border: "1px solid #D8CBB3" }} />
+                  <input type="time" value={f.oraFine} onChange={(e) => aggiornaFascia(i, "oraFine", e.target.value)} className="flex-1 px-2 py-1.5 rounded-lg text-sm" style={{ border: "1px solid #D8CBB3" }} />
+                  <button onClick={() => rimuoviFascia(i)} aria-label="Rimuovi fascia" style={{ color: "#B4708B" }}><X size={15} /></button>
+                </div>
+              ))}
+              {(attuali.fasce || []).length === 0 && <p className="text-xs" style={{ color: "#8A7A63" }}>Nessuna fascia impostata — aggiungine almeno una.</p>}
+            </div>
+            <button onClick={aggiungiFascia} className="text-xs font-medium flex items-center gap-1 mb-4" style={{ color: "#7A5A1E" }}>
+              <Plus size={13} /> fascia oraria
+            </button>
+          </>
+        )}
 
         <div className="flex justify-end">
           <button onClick={onChiudi} className="px-3 py-1.5 rounded-lg text-sm" style={{ border: "1px solid #D8CBB3" }}>Chiudi</button>
